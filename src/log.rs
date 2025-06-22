@@ -2,7 +2,8 @@ use crate::utils::pass_to_git;
 use serde_json::Value;
 
 pub fn gut_log(_args: &[String], config: &Value) {
-    let log_cfg = config.get("log").unwrap_or(&serde_json::json!({}));
+    let binding = serde_json::json!({});
+    let log_cfg = config.get("log").unwrap_or(&binding);
     let count = log_cfg.get("count").and_then(|v| v.as_u64()).unwrap_or(10);
     let info = log_cfg.get("info").and_then(|v| v.as_str()).unwrap_or("less");
     let pretty = if info == "more" {
@@ -10,8 +11,9 @@ pub fn gut_log(_args: &[String], config: &Value) {
     } else {
         "%h %s"
     };
+    let pretty_string = format!("--pretty=format:{}", pretty);
     let output = std::process::Command::new("git")
-        .args(["log", "-n", &count.to_string(), "--pretty=format:".to_owned() + pretty])
+        .args(["log", "-n", &count.to_string(), &pretty_string])
         .output()
         .expect("failed to run git log");
     if output.status.success() {
@@ -23,7 +25,8 @@ pub fn gut_log(_args: &[String], config: &Value) {
 }
 
 pub fn gut_rlog(args: &[String], config: &Value) {
-    let log_cfg = config.get("log").unwrap_or(&serde_json::json!({}));
+    let binding = serde_json::json!({});
+    let log_cfg = config.get("log").unwrap_or(&binding);
     let count = log_cfg.get("count").and_then(|v| v.as_u64()).unwrap_or(10);
     let info = log_cfg.get("info").and_then(|v| v.as_str()).unwrap_or("less");
     let pretty = if info == "more" {
@@ -31,13 +34,15 @@ pub fn gut_rlog(args: &[String], config: &Value) {
     } else {
         "%h %s"
     };
-    let mut git_args = vec!["log".to_string(), "-n".to_string(), count.to_string(), "--reverse".to_string(), format!("--pretty=format:{}", pretty)];
+    let pretty_string = format!("--pretty=format:{}", pretty);
+    let mut git_args = vec!["log".to_string(), "-n".to_string(), count.to_string(), "--reverse".to_string(), pretty_string];
     git_args.extend(args.iter().cloned());
     pass_to_git(&git_args);
 }
 
 pub fn gut_tlog(_args: &[String], config: &Value) {
-    let tlog_cfg = config.get("tlog").unwrap_or(&serde_json::json!({}));
+    let binding = serde_json::json!({});
+    let tlog_cfg = config.get("tlog").unwrap_or(&binding);
     let count = tlog_cfg.get("count").and_then(|v| v.as_u64()).unwrap_or(20);
     let info = tlog_cfg.get("info").and_then(|v| v.as_str()).unwrap_or("less");
     let pretty = if info == "more" {
@@ -67,8 +72,9 @@ pub fn gut_tlog(_args: &[String], config: &Value) {
     let mut seen = std::collections::HashSet::new();
     let mut all_commits = vec![];
     for branch in &branches {
+        let pretty_string = format!("--pretty=format:{}", pretty);
         let output = std::process::Command::new("git")
-            .args(["log", branch, "-n", &count.to_string(), "--pretty=format:".to_owned() + pretty])
+            .args(["log", branch, "-n", &count.to_string(), &pretty_string])
             .output()
             .expect("failed to run git log");
         if output.status.success() {
