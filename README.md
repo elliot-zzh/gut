@@ -1,6 +1,8 @@
 # gut
 
-A Rust CLI tool that wraps git, providing smart subcommand inference, commit message formatting, config-driven hooks, and convenient shortcuts.
+What a 'git' needs is just its gut!
+
+A CLI tool written in Rust that wraps git, providing smart subcommand inference, commit message formatting, config-driven hooks, and convenient shortcuts.
 
 ## Features
 - Auto-infer git subcommands from short abbreviations or typos
