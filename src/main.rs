@@ -5,7 +5,8 @@ use std::path::Path;
 use std::io::Write;
 
 fn main() {
-    check_and_generate_hooks();
+    let config = load_config();
+    check_and_generate_hooks(&config);
     let args: Vec<String> = env::args().skip(1).collect();
     if args.is_empty() {
         eprintln!("Usage: gut <git-subcommand> [args...]");
@@ -13,43 +14,48 @@ fn main() {
     }
     let sub = &args[0];
     match sub.as_str() {
-        s if infer_subcommand(s, "commit") => gut_commit(&args[1..]),
+        s if infer_subcommand(s, "commit") => gut_commit(&args[1..], &config),
         s if infer_subcommand(s, "branch") => gut_branch(&args[1..]),
-        s if infer_subcommand(s, "rlog") => gut_rlog(&args[1..]),
+        s if infer_subcommand(s, "rlog") => gut_rlog(&args[1..], &config),
         s if infer_subcommand(s, "template") => gut_template(&args[1..]),
-        s if infer_subcommand(s, "log") => gut_log(&args[1..]),
-        s if infer_subcommand(s, "tlog") => gut_tlog(&args[1..]),
+        s if infer_subcommand(s, "log") => gut_log(&args[1..], &config),
+        s if infer_subcommand(s, "tlog") => gut_tlog(&args[1..], &config),
         _ => pass_to_git(&args),
     }
 }
 
-fn check_and_generate_hooks() {
+fn load_config() -> serde_json::Value {
     let config_path = Path::new("gut.config.json");
-    if !config_path.exists() { return; }
-    let config = std::fs::read_to_string(config_path).ok()?;
-    let json: serde_json::Value = serde_json::from_str(&config).ok()?;
-    let hooks = json.get("hooks")?.as_array()?;
+    if !config_path.exists() { return serde_json::json!({}); }
+    let config = std::fs::read_to_string(config_path).unwrap_or_default();
+    serde_json::from_str(&config).unwrap_or_default()
+}
+
+fn check_and_generate_hooks(config: &serde_json::Value) {
+    let hooks = config.get("hooks").and_then(|v| v.as_array());
     let git_hooks_dir = Path::new(".git/hooks");
-    if !git_hooks_dir.exists() { return; }
-    for hook in hooks {
-        let name = hook.get("name")?.as_str()?;
+    if hooks.is_none() || !git_hooks_dir.exists() { return; }
+    for hook in hooks.unwrap() {
+        let name = hook.get("name").and_then(|v| v.as_str());
         let condition = hook.get("condition").and_then(|v| v.as_str()).unwrap_or("");
-        let commands = hook.get("commands")?.as_array()?;
-        let mut script = String::from("#!/bin/sh\nset -e\n");
-        if !condition.is_empty() {
-            script.push_str(&format!("if ! ({}); then exit 0; fi\n", condition));
-        }
-        for cmd in commands {
-            if let Some(cmd_str) = cmd.as_str() {
-                script.push_str(cmd_str);
-                script.push('\n');
+        let commands = hook.get("commands").and_then(|v| v.as_array());
+        if let (Some(name), Some(commands)) = (name, commands) {
+            let mut script = String::from("#!/bin/sh\nset -e\n");
+            if !condition.is_empty() {
+                script.push_str(&format!("if ! ({}); then exit 0; fi\n", condition));
             }
-        }
-        let hook_path = git_hooks_dir.join(name);
-        if !hook_path.exists() || std::fs::read_to_string(&hook_path).ok().as_deref() != Some(&script) {
-            if let Ok(mut f) = std::fs::File::create(&hook_path) {
-                let _ = f.write_all(script.as_bytes());
-                let _ = std::fs::set_permissions(&hook_path, std::os::unix::fs::PermissionsExt::from_mode(0o755));
+            for cmd in commands {
+                if let Some(cmd_str) = cmd.as_str() {
+                    script.push_str(cmd_str);
+                    script.push('\n');
+                }
+            }
+            let hook_path = git_hooks_dir.join(name);
+            if !hook_path.exists() || std::fs::read_to_string(&hook_path).ok().as_deref() != Some(&script) {
+                if let Ok(mut f) = std::fs::File::create(&hook_path) {
+                    let _ = f.write_all(script.as_bytes());
+                    let _ = std::fs::set_permissions(&hook_path, std::os::unix::fs::PermissionsExt::from_mode(0o755));
+                }
             }
         }
     }
@@ -79,13 +85,13 @@ fn levenshtein(a: &str, b: &str) -> usize {
     costs[b.len()]
 }
 
-fn gut_commit(args: &[String]) {
+fn gut_commit(args: &[String], config: &serde_json::Value) {
     if args.is_empty() {
         eprintln!("gut commit <msg>");
         exit(1);
     }
     let msg = &args[args.len() - 1];
-    let formatted = format_commit_message(msg);
+    let formatted = format_commit_message(msg, config);
     let mut git_args = vec!["commit".to_string(), "-m".to_string(), formatted];
     if args.len() > 1 {
         git_args.splice(1..1, args[..args.len()-1].to_vec());
@@ -93,7 +99,7 @@ fn gut_commit(args: &[String]) {
     pass_to_git(&git_args);
 }
 
-fn format_commit_message(msg: &str) -> String {
+fn format_commit_message(msg: &str, config: &serde_json::Value) -> String {
     let emoji = if msg.starts_with("feat:") { "✨" }
         else if msg.starts_with("fix:") { "🐛" }
         else if msg.starts_with("docs:") { "📝" }
@@ -101,11 +107,29 @@ fn format_commit_message(msg: &str) -> String {
         else if msg.starts_with("test:") { "✅" }
         else if msg.starts_with("chore:") { "🔧" }
         else { "" };
-    if let Some((typ, rest)) = msg.split_once(":") {
+    let mut formatted = if let Some((typ, rest)) = msg.split_once(":") {
         format!("{} {}: {}", emoji, typ, rest.trim())
     } else {
         msg.to_string()
+    };
+    if let Some(commit_cfg) = config.get("commit") {
+        if let Some(mode) = commit_cfg.get("format_mode").and_then(|v| v.as_str()) {
+            match mode {
+                "upper_case" => {
+                    if let Some(first) = formatted.get_mut(0..1) {
+                        first.make_ascii_uppercase();
+                    }
+                },
+                "lower_case" => {
+                    if let Some(first) = formatted.get_mut(0..1) {
+                        first.make_ascii_lowercase();
+                    }
+                },
+                _ => {}
+            }
+        }
     }
+    formatted
 }
 
 fn gut_branch(args: &[String]) {
@@ -117,10 +141,18 @@ fn gut_branch(args: &[String]) {
     pass_to_git(&["checkout".to_string(), "-b".to_string(), branch.clone()]);
 }
 
-fn gut_rlog(args: &[String]) {
-    let mut git_args = vec!["log".to_string()];
+fn gut_rlog(args: &[String], config: &serde_json::Value) {
+    // rlog always follows log config
+    let log_cfg = config.get("log").unwrap_or(&serde_json::json!({}));
+    let count = log_cfg.get("count").and_then(|v| v.as_u64()).unwrap_or(10);
+    let info = log_cfg.get("info").and_then(|v| v.as_str()).unwrap_or("less");
+    let pretty = if info == "more" {
+        "%h %an %ad %s"
+    } else {
+        "%h %s"
+    };
+    let mut git_args = vec!["log".to_string(), "-n".to_string(), count.to_string(), "--reverse".to_string(), format!("--pretty=format:{}", pretty)];
     git_args.extend(args.iter().cloned());
-    git_args.push("--reverse".to_string());
     pass_to_git(&git_args);
 }
 
@@ -143,10 +175,17 @@ fn gut_template(args: &[String]) {
     println!("Template repo initialized at {}", dest);
 }
 
-fn gut_log(_args: &[String]) {
-    // Show latest 10 commits, dense format: <short id> <message>
+fn gut_log(_args: &[String], config: &serde_json::Value) {
+    let log_cfg = config.get("log").unwrap_or(&serde_json::json!({}));
+    let count = log_cfg.get("count").and_then(|v| v.as_u64()).unwrap_or(10);
+    let info = log_cfg.get("info").and_then(|v| v.as_str()).unwrap_or("less");
+    let pretty = if info == "more" {
+        "%h %an %ad %s"
+    } else {
+        "%h %s"
+    };
     let output = Command::new("git")
-        .args(["log", "-n", "10", "--pretty=format:%h %s"])
+        .args(["log", "-n", &count.to_string(), "--pretty=format:".to_owned() + pretty])
         .output()
         .expect("failed to run git log");
     if output.status.success() {
@@ -157,8 +196,15 @@ fn gut_log(_args: &[String]) {
     }
 }
 
-fn gut_tlog(_args: &[String]) {
-    // Show latest 20 commits from all branches in a tree, current branch first, dense format
+fn gut_tlog(_args: &[String], config: &serde_json::Value) {
+    let tlog_cfg = config.get("tlog").unwrap_or(&serde_json::json!({}));
+    let count = tlog_cfg.get("count").and_then(|v| v.as_u64()).unwrap_or(20);
+    let info = tlog_cfg.get("info").and_then(|v| v.as_str()).unwrap_or("less");
+    let pretty = if info == "more" {
+        "%h %an %ad %s"
+    } else {
+        "%h %s"
+    };
     let current_branch = Command::new("git")
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
         .output()
@@ -182,7 +228,7 @@ fn gut_tlog(_args: &[String]) {
     let mut all_commits = vec![];
     for branch in &branches {
         let output = Command::new("git")
-            .args(["log", branch, "-n", "20", "--pretty=format:%h %s"])
+            .args(["log", branch, "-n", &count.to_string(), "--pretty=format:".to_owned() + pretty])
             .output()
             .expect("failed to run git log");
         if output.status.success() {
@@ -196,9 +242,7 @@ fn gut_tlog(_args: &[String]) {
             }
         }
     }
-    // Only keep latest 20 unique commits
-    all_commits.truncate(20);
-    // Print as a tree: branch -> commits, dense format
+    all_commits.truncate(count as usize);
     for (i, branch) in branches.iter().enumerate() {
         let rank = i + 1;
         println!("{}. {}:", rank, branch);
