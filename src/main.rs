@@ -17,6 +17,8 @@ fn main() {
         s if infer_subcommand(s, "branch") => gut_branch(&args[1..]),
         s if infer_subcommand(s, "rlog") => gut_rlog(&args[1..]),
         s if infer_subcommand(s, "template") => gut_template(&args[1..]),
+        s if infer_subcommand(s, "log") => gut_log(&args[1..]),
+        s if infer_subcommand(s, "tlog") => gut_tlog(&args[1..]),
         _ => pass_to_git(&args),
     }
 }
@@ -139,6 +141,71 @@ fn gut_template(args: &[String]) {
     let status = Command::new("git").current_dir(dest).args(["init"]).status().expect("failed to re-init");
     if !status.success() { exit(1); }
     println!("Template repo initialized at {}", dest);
+}
+
+fn gut_log(_args: &[String]) {
+    // Show latest 10 commits, dense format: <short id> <message>
+    let output = Command::new("git")
+        .args(["log", "-n", "10", "--pretty=format:%h %s"])
+        .output()
+        .expect("failed to run git log");
+    if output.status.success() {
+        println!("{}", String::from_utf8_lossy(&output.stdout));
+    } else {
+        eprintln!("git log failed");
+        exit(1);
+    }
+}
+
+fn gut_tlog(_args: &[String]) {
+    // Show latest 20 commits from all branches in a tree, current branch first, dense format
+    let current_branch = Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .ok()
+        .and_then(|o| if o.status.success() { Some(String::from_utf8_lossy(&o.stdout).trim().to_string()) } else { None });
+    let mut branches = vec![];
+    let branch_output = Command::new("git")
+        .args(["for-each-ref", "--format=%(refname:short)", "refs/heads/"])
+        .output()
+        .expect("failed to list branches");
+    if branch_output.status.success() {
+        for line in String::from_utf8_lossy(&branch_output.stdout).lines() {
+            branches.push(line.to_string());
+        }
+    }
+    if let Some(ref cur) = current_branch {
+        branches.retain(|b| b != cur);
+        branches.insert(0, cur.clone());
+    }
+    let mut seen = std::collections::HashSet::new();
+    let mut all_commits = vec![];
+    for branch in &branches {
+        let output = Command::new("git")
+            .args(["log", branch, "-n", "20", "--pretty=format:%h %s"])
+            .output()
+            .expect("failed to run git log");
+        if output.status.success() {
+            for line in String::from_utf8_lossy(&output.stdout).lines() {
+                let mut parts = line.splitn(2, ' ');
+                if let (Some(hash), Some(msg)) = (parts.next(), parts.next()) {
+                    if seen.insert(hash.to_string()) {
+                        all_commits.push((branch.clone(), hash.to_string(), msg.to_string()));
+                    }
+                }
+            }
+        }
+    }
+    // Only keep latest 20 unique commits
+    all_commits.truncate(20);
+    // Print as a tree: branch -> commits, dense format
+    for (i, branch) in branches.iter().enumerate() {
+        let rank = i + 1;
+        println!("{}. {}:", rank, branch);
+        for (_b, hash, msg) in all_commits.iter().filter(|(b, _, _)| b == branch) {
+            println!("    {} {}", hash, msg);
+        }
+    }
 }
 
 fn pass_to_git(args: &[String]) {
