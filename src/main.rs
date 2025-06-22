@@ -1,0 +1,149 @@
+use std::env;
+use std::process::{Command, exit};
+use std::fs;
+use std::path::Path;
+use std::io::Write;
+
+fn main() {
+    check_and_generate_hooks();
+    let args: Vec<String> = env::args().skip(1).collect();
+    if args.is_empty() {
+        eprintln!("Usage: gut <git-subcommand> [args...]");
+        exit(1);
+    }
+    let sub = &args[0];
+    match sub.as_str() {
+        s if infer_subcommand(s, "commit") => gut_commit(&args[1..]),
+        s if infer_subcommand(s, "branch") => gut_branch(&args[1..]),
+        s if infer_subcommand(s, "rlog") => gut_rlog(&args[1..]),
+        s if infer_subcommand(s, "template") => gut_template(&args[1..]),
+        _ => pass_to_git(&args),
+    }
+}
+
+fn check_and_generate_hooks() {
+    let config_path = Path::new("gut.config.json");
+    if !config_path.exists() { return; }
+    let config = std::fs::read_to_string(config_path).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&config).ok()?;
+    let hooks = json.get("hooks")?.as_array()?;
+    let git_hooks_dir = Path::new(".git/hooks");
+    if !git_hooks_dir.exists() { return; }
+    for hook in hooks {
+        let name = hook.get("name")?.as_str()?;
+        let condition = hook.get("condition").and_then(|v| v.as_str()).unwrap_or("");
+        let commands = hook.get("commands")?.as_array()?;
+        let mut script = String::from("#!/bin/sh\nset -e\n");
+        if !condition.is_empty() {
+            script.push_str(&format!("if ! ({}); then exit 0; fi\n", condition));
+        }
+        for cmd in commands {
+            if let Some(cmd_str) = cmd.as_str() {
+                script.push_str(cmd_str);
+                script.push('\n');
+            }
+        }
+        let hook_path = git_hooks_dir.join(name);
+        if !hook_path.exists() || std::fs::read_to_string(&hook_path).ok().as_deref() != Some(&script) {
+            if let Ok(mut f) = std::fs::File::create(&hook_path) {
+                let _ = f.write_all(script.as_bytes());
+                let _ = std::fs::set_permissions(&hook_path, std::os::unix::fs::PermissionsExt::from_mode(0o755));
+            }
+        }
+    }
+}
+
+fn infer_subcommand(input: &str, target: &str) -> bool {
+    // Accepts abbreviation or typo (Levenshtein distance <=1 or prefix)
+    if target.starts_with(input) { return true; }
+    levenshtein(input, target) <= 1
+}
+
+fn levenshtein(a: &str, b: &str) -> usize {
+    let mut costs = vec![0; b.len() + 1];
+    for j in 0..=b.len() { costs[j] = j; }
+    for (i, ca) in a.chars().enumerate() {
+        let mut last = i;
+        costs[0] = i + 1;
+        for (j, cb) in b.chars().enumerate() {
+            let old = costs[j + 1];
+            costs[j + 1] = std::cmp::min(
+                std::cmp::min(costs[j] + 1, costs[j + 1] + 1),
+                last + if ca == cb { 0 } else { 1 }
+            );
+            last = old;
+        }
+    }
+    costs[b.len()]
+}
+
+fn gut_commit(args: &[String]) {
+    if args.is_empty() {
+        eprintln!("gut commit <msg>");
+        exit(1);
+    }
+    let msg = &args[args.len() - 1];
+    let formatted = format_commit_message(msg);
+    let mut git_args = vec!["commit".to_string(), "-m".to_string(), formatted];
+    if args.len() > 1 {
+        git_args.splice(1..1, args[..args.len()-1].to_vec());
+    }
+    pass_to_git(&git_args);
+}
+
+fn format_commit_message(msg: &str) -> String {
+    let emoji = if msg.starts_with("feat:") { "✨" }
+        else if msg.starts_with("fix:") { "🐛" }
+        else if msg.starts_with("docs:") { "📝" }
+        else if msg.starts_with("refactor:") { "♻️" }
+        else if msg.starts_with("test:") { "✅" }
+        else if msg.starts_with("chore:") { "🔧" }
+        else { "" };
+    if let Some((typ, rest)) = msg.split_once(":") {
+        format!("{} {}: {}", emoji, typ, rest.trim())
+    } else {
+        msg.to_string()
+    }
+}
+
+fn gut_branch(args: &[String]) {
+    if args.is_empty() {
+        eprintln!("gut branch <branch-name>");
+        exit(1);
+    }
+    let branch = &args[0];
+    pass_to_git(&["checkout".to_string(), "-b".to_string(), branch.clone()]);
+}
+
+fn gut_rlog(args: &[String]) {
+    let mut git_args = vec!["log".to_string()];
+    git_args.extend(args.iter().cloned());
+    git_args.push("--reverse".to_string());
+    pass_to_git(&git_args);
+}
+
+fn gut_template(args: &[String]) {
+    if args.is_empty() {
+        eprintln!("gut template <template-repo-url> [dest]");
+        exit(1);
+    }
+    let url = &args[0];
+    let dest = args.get(1).map(|s| s.as_str()).unwrap_or(".");
+    let status = Command::new("git").args(["clone", url, dest]).status().expect("failed to clone");
+    if !status.success() { exit(1); }
+    let git_dir = format!("{}/.git", dest);
+    if fs::remove_dir_all(&git_dir).is_err() {
+        eprintln!("Failed to remove .git directory");
+        exit(1);
+    }
+    let status = Command::new("git").current_dir(dest).args(["init"]).status().expect("failed to re-init");
+    if !status.success() { exit(1); }
+    println!("Template repo initialized at {}", dest);
+}
+
+fn pass_to_git(args: &[String]) {
+    let status = Command::new("git").args(args).status().expect("failed to run git");
+    if !status.success() {
+        exit(status.code().unwrap_or(1));
+    }
+}
