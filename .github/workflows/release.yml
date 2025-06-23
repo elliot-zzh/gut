@@ -1,0 +1,69 @@
+name: Build and Release Binaries
+
+on:
+  push:
+    paths:
+      - 'src/**'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: gut-linux
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: gut-macos
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: gut-win.exe
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+      - name: Build
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+      - name: Rename binary
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            mv target/${{ matrix.target }}/release/gut.exe ${{ matrix.artifact }}
+          else
+            mv target/${{ matrix.target }}/release/gut ${{ matrix.artifact }}
+          fi
+        shell: bash
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+      - name: Prepare release assets
+        run: |
+          mkdir -p release_assets
+          cp ./artifacts/*/* release_assets/
+      - name: Create or update 'latest' release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: latest
+          draft: false
+          prerelease: false
+          files: release_assets/*
+          token: ${{ secrets.GITHUB_TOKEN }}
