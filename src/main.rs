@@ -9,6 +9,10 @@ use commit::gut_commit;
 use log::{gut_log, gut_rlog, gut_tlog};
 use std::env;
 
+const GIT_COMMANDS: &[&str] = &[
+    "init", "clone", "add", "commit", "restore", "rm", "mv", "status", "log", "diff", "show", "branch", "checkout", "merge", "rebase", "fast-forward", "tag", "stash", "pull", "fetch", "push", "remote", "submodule", "reset", "revert", "clean", "gc", "fsck", "archive", "blame", "bisect", "cherry-pick", "config", "help"
+];
+
 fn gut_branch(args: &[String]) {
     if args.is_empty() {
         eprintln!("gut branch <branch-name>");
@@ -47,13 +51,36 @@ fn main() {
         std::process::exit(1);
     }
     let sub = &args[0];
-    match sub.as_str() {
-        s if infer_subcommand(s, "commit") => gut_commit(&args[1..], &config),
-        s if infer_subcommand(s, "branch") => gut_branch(&args[1..]),
-        s if infer_subcommand(s, "rlog") => gut_rlog(&args[1..], &config),
-        s if infer_subcommand(s, "template") => gut_template(&args[1..]),
-        s if infer_subcommand(s, "log") => gut_log(&args[1..], &config),
-        s if infer_subcommand(s, "tlog") => gut_tlog(&args[1..], &config),
-        _ => pass_to_git(&args),
+    // Special handling for gut-only commands
+    if infer_subcommand(sub, "template") {
+        gut_template(&args[1..]);
+        return;
     }
+    // Special handling for log variants
+    if infer_subcommand(sub, "rlog") {
+        gut_rlog(&args[1..], &config);
+        return;
+    }
+    if infer_subcommand(sub, "tlog") {
+        gut_tlog(&args[1..], &config);
+        return;
+    }
+    // Typo/abbr inference for all standard git commands
+    for &cmd in GIT_COMMANDS {
+        if infer_subcommand(sub, cmd) {
+            match cmd {
+                "commit" => gut_commit(&args[1..], &config),
+                "branch" => gut_branch(&args[1..]),
+                "log" => gut_log(&args[1..], &config),
+                _ => {
+                    let mut git_args = vec![cmd.to_string()];
+                    git_args.extend(args[1..].iter().cloned());
+                    pass_to_git(&git_args);
+                }
+            }
+            return;
+        }
+    }
+    // Fallback: pass to git
+    pass_to_git(&args);
 }
