@@ -31,7 +31,16 @@ pub fn check_and_generate_hooks(config: &serde_json::Value) {
                 if let Ok(mut f) = std::fs::File::create(&hook_path) {
                     use std::io::Write;
                     let _ = f.write_all(script.as_bytes());
-                    let _ = std::fs::set_permissions(&hook_path, std::os::unix::fs::PermissionsExt::from_mode(0o755));
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        let _ = std::fs::set_permissions(&hook_path, std::fs::Permissions::from_mode(0o755));
+                    }
+                    #[cfg(windows)]
+                    {
+                        // On Windows, set readonly to false (executable bit is not used)
+                        let _ = std::fs::set_permissions(&hook_path, std::fs::Permissions::from_mode(0o666));
+                    }
                 }
             }
         }
