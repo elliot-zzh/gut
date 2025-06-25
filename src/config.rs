@@ -36,11 +36,7 @@ pub fn check_and_generate_hooks(config: &serde_json::Value) {
                         use std::os::unix::fs::PermissionsExt;
                         let _ = std::fs::set_permissions(&hook_path, std::fs::Permissions::from_mode(0o755));
                     }
-                    #[cfg(windows)]
-                    {
-                        // On Windows, set readonly to false (executable bit is not used)
-                        let _ = std::fs::set_permissions(&hook_path, std::fs::Permissions::from_mode(0o666));
-                    }
+                    // No permission setting for Windows; not needed
                 }
             }
         }
