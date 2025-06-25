@@ -2,7 +2,9 @@
 
 What a 'git' needs is just its gut!
 
-A CLI tool written that wraps git, providing smart subcommand inference, commit message formatting, config-driven hooks, and convenient shortcuts.
+A CLI tool that wraps git, providing smart subcommand inference, commit message formatting, config-driven hooks, and convenient shortcuts.
+
+Written in Rust.
 
 ## Getting Started
 
@@ -18,7 +20,7 @@ cargo install --path .
 
 ### Basic Usage
 
-Just replace all your `git` with `gut`! Gut will automatically handle your typos / abbrs command.
+Just replace all your `git` with `gut`! Gut will automatically handle your typos / abbr command.
 
 `gut commit` is one of the modified command: you don't need to add `-m` since the last argument will be treated as the commit message. Also conventional commits such as `feat: xxx` will automatically have emojis added.
 
@@ -44,13 +46,15 @@ For other modified commands refer to below. But most of the git commands are jus
 
 - `hooks`: List of git hooks to auto-generate
 - `log`/`tlog`: Configure log count and info level (`less`/`more`)
-- `commit`: Configure commit message formatting mode and custom emoji mapping for commit types (footer)
+- `commit`: Configure commit message formatting mode, custom emoji mapping for commit types (footer), enable/disable emoji, and require conventional commit style
 
 Example:
 ```json
 {
   "commit": {
     "format_mode": "upper_case",
+    "emoji_enabled": true,
+    "require_conventional": false,
     "footer_emoji": {
       "feat": "✨",
       "fix": "🐛",

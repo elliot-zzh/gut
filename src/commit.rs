@@ -7,12 +7,41 @@ pub fn gut_commit(args: &[String], config: &Value) {
         std::process::exit(1);
     }
     let msg = &args[args.len() - 1];
+    // Check for conventional commit enforcement
+    let require_conventional = config.get("commit")
+        .and_then(|c| c.get("require_conventional"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if require_conventional && !is_conventional_commit(msg) {
+        eprintln!("[gut] conventional commit is required");
+        std::process::exit(1);
+    }
     let formatted = format_commit_message(msg, config);
     let mut git_args = vec!["commit".to_string(), "-m".to_string(), formatted];
     if args.len() > 1 {
         git_args.splice(1..1, args[..args.len()-1].to_vec());
     }
     pass_to_git(&git_args);
+}
+
+fn is_conventional_commit(msg: &str) -> bool {
+    // Accepts: type: desc or type(scope): desc
+    let msg = msg.trim();
+    if let Some((typ, rest)) = msg.split_once(":") {
+        let typ = typ.trim();
+        if typ.is_empty() || rest.trim().is_empty() {
+            return false;
+        }
+        // Optionally allow scope: type(scope): desc
+        if let Some(scope_start) = typ.find('(') {
+            let scope_end = typ.find(')');
+            if scope_end.is_none() || scope_end.unwrap() < scope_start {
+                return false;
+            }
+        }
+        return true;
+    }
+    false
 }
 
 pub fn format_commit_message(msg: &str, config: &Value) -> String {
@@ -40,24 +69,45 @@ pub fn format_commit_message(msg: &str, config: &Value) -> String {
             }
         }
     }
+    // Emoji enabled config
+    let emoji_enabled = config.get("commit")
+        .and_then(|c| c.get("emoji_enabled"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
     // Parse type/scope: desc
     let (typ, rest) = if let Some((typ, rest)) = msg.split_once(":") {
         (typ.trim(), rest.trim())
     } else {
         ("", msg)
     };
-    let emoji = footer_emoji_map.get(typ).copied().unwrap_or("");
+    let emoji = if emoji_enabled {
+        footer_emoji_map.get(typ).copied().unwrap_or("")
+    } else {
+        ""
+    };
     let mut formatted = if typ.is_empty() {
         msg.to_string()
     } else {
-        format!("{} {}: {}", emoji, typ, rest)
+        if emoji_enabled && !emoji.is_empty() {
+            format!("{} {}: {}", emoji, typ, rest)
+        } else {
+            format!("{}: {}", typ, rest)
+        }
     };
     // Support scope: type(scope): desc
     if let Some((typ_scope, _desc)) = typ.split_once('(') {
         if let Some(scope) = typ_scope.split(')').next() {
             let typ_clean = typ_scope.trim_end_matches('(').trim();
-            let emoji = footer_emoji_map.get(typ_clean).copied().unwrap_or("");
-            formatted = format!("{} {}({}): {}", emoji, typ_clean, scope.trim_end_matches(')'), rest);
+            let emoji = if emoji_enabled {
+                footer_emoji_map.get(typ_clean).copied().unwrap_or("")
+            } else {
+                ""
+            };
+            formatted = if emoji_enabled && !emoji.is_empty() {
+                format!("{} {}({}): {}", emoji, typ_clean, scope.trim_end_matches(')'), rest)
+            } else {
+                format!("{}({}): {}", typ_clean, scope.trim_end_matches(')'), rest)
+            };
         }
     }
     if let Some(commit_cfg) = config.get("commit") {
