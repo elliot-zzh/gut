@@ -58,7 +58,7 @@ pub fn format_commit_message(msg: &str, config: &Value) -> String {
     footer_emoji_map.insert("build", "🏗️");
     footer_emoji_map.insert("style", "🎨");
     footer_emoji_map.insert("ci", "🔁");
-    footer_emoji_map.insert("perf", "⚡");
+    footer_emoji_map.insert("perf", "⚡️");
     footer_emoji_map.insert("revert", "⏪");
     // Merge user config mapping
     if let Some(commit_cfg) = config.get("commit") {
@@ -105,7 +105,7 @@ pub fn format_commit_message(msg: &str, config: &Value) -> String {
                 ""
             };
             formatted = if emoji_enabled && !emoji.is_empty() {
-                format!("{} {}({}): {}", emoji, typ_clean, scope.trim_end_matches(')'), rest)
+                format!("{}({}): {} {}", typ_clean, scope.trim_end_matches(')'), emoji, rest)
             } else {
                 format!("{}({}): {}", typ_clean, scope.trim_end_matches(')'), rest)
             };
