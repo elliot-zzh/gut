@@ -14,7 +14,7 @@ pub fn gut_commit(args: &[String], config: &Value) {
         .map(|mode| mode == "upper_case" || mode == "lower_case")
         .unwrap_or(false);
     if !skip_conventional && !is_conventional_commit(msg) {
-        eprintln!("[gut] conventional commit is required");
+        eprintln!("[gut] conventional commit is required (e.g. 'feat: add some new features' or 'fix(scope): fix some issues')");
         std::process::exit(1);
     }
     let formatted = format_commit_message(msg, config);
