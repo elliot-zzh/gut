@@ -1,11 +1,6 @@
 use std::process::exit;
 
-pub fn infer_subcommand(input: &str, target: &str) -> bool {
-    if target.starts_with(input) { return true; }
-    levenshtein(input, target) <= 1
-}
-
-fn levenshtein(a: &str, b: &str) -> usize {
+pub fn levenshtein(a: &str, b: &str) -> usize {
     let mut costs = vec![0; b.len() + 1];
     for j in 0..=b.len() { costs[j] = j; }
     for (i, ca) in a.chars().enumerate() {

@@ -4,14 +4,10 @@ mod commit;
 mod log;
 
 use config::{load_config, check_and_generate_hooks};
-use utils::{infer_subcommand, pass_to_git};
+use utils::{pass_to_git};
 use commit::gut_commit;
 use log::{gut_log, gut_rlog, gut_tlog};
 use std::env;
-
-const GIT_COMMANDS: &[&str] = &[
-    "init", "clone", "add", "commit", "restore", "rm", "mv", "status", "log", "diff", "show", "branch", "checkout", "merge", "rebase", "fast-forward", "tag", "stash", "pull", "fetch", "push", "remote", "submodule", "reset", "revert", "clean", "gc", "fsck", "archive", "blame", "bisect", "cherry-pick", "config", "help"
-];
 
 fn gut_branch(args: &[String]) {
     if args.is_empty() {
@@ -51,35 +47,43 @@ fn main() {
         std::process::exit(1);
     }
     let sub = &args[0];
-    // Special handling for gut-only commands
-    if infer_subcommand(sub, "template") {
-        gut_template(&args[1..]);
-        return;
+    // Find the subcommand with the shortest Levenshtein distance (including gut-only commands)
+    const ALL_COMMANDS: &[&str] = &[
+        "template", "rlog", "tlog",
+        "init", "clone", "add", "commit", "restore", "rm", "mv", "status", "log", "diff", "show", "branch", "checkout", "merge", "rebase", "fast-forward", "tag", "stash", "pull", "fetch", "push", "remote", "submodule", "reset", "revert", "clean", "gc", "fsck", "archive", "blame", "bisect", "cherry-pick", "config", "help"
+    ];
+    let mut min_dist = usize::MAX;
+    let mut best_cmd = None;
+    for &cmd in ALL_COMMANDS {
+        let dist = utils::levenshtein(sub, cmd);
+        if dist < min_dist {
+            min_dist = dist;
+            best_cmd = Some(cmd);
+        }
     }
-    // Special handling for log variants
-    if infer_subcommand(sub, "rlog") {
-        gut_rlog(&args[1..], &config);
-        return;
-    }
-    if infer_subcommand(sub, "tlog") {
-        gut_tlog(&args[1..], &config);
-        return;
-    }
-    // Typo/abbr inference for all standard git commands
-    for &cmd in GIT_COMMANDS {
-        if infer_subcommand(sub, cmd) {
-            match cmd {
-                "commit" => gut_commit(&args[1..], &config),
-                "branch" => gut_branch(&args[1..]),
-                "log" => gut_log(&args[1..], &config),
-                _ => {
-                    let mut git_args = vec![cmd.to_string()];
-                    git_args.extend(args[1..].iter().cloned());
-                    pass_to_git(&git_args);
-                }
-            }
+    if let Some(cmd) = best_cmd {
+        if min_dist > 3 {
+            // Fallback: pass to git
+            pass_to_git(&args);
             return;
         }
+        if min_dist >= 1 {
+            println!("[gut] subcommand smart infer: {} \x1b[32m=>\x1b[0m {}", sub, cmd);
+        }
+        match cmd {
+            "template" => gut_template(&args[1..]),
+            "rlog" => gut_rlog(&args[1..], &config),
+            "tlog" => gut_tlog(&args[1..], &config),
+            "commit" => gut_commit(&args[1..], &config),
+            "branch" => gut_branch(&args[1..]),
+            "log" => gut_log(&args[1..], &config),
+            _ => {
+                let mut git_args = vec![cmd.to_string()];
+                git_args.extend(args[1..].iter().cloned());
+                pass_to_git(&git_args);
+            }
+        }
+        return;
     }
     // Fallback: pass to git
     pass_to_git(&args);
