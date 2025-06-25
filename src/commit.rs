@@ -7,12 +7,13 @@ pub fn gut_commit(args: &[String], config: &Value) {
         std::process::exit(1);
     }
     let msg = &args[args.len() - 1];
-    // Check for conventional commit enforcement
-    let require_conventional = config.get("commit")
-        .and_then(|c| c.get("require_conventional"))
-        .and_then(|v| v.as_bool())
+    // Conventional commit is required unless format_mode is set
+    let skip_conventional = config.get("commit")
+        .and_then(|c| c.get("format_mode"))
+        .and_then(|v| v.as_str())
+        .map(|mode| mode == "upper_case" || mode == "lower_case")
         .unwrap_or(false);
-    if require_conventional && !is_conventional_commit(msg) {
+    if !skip_conventional && !is_conventional_commit(msg) {
         eprintln!("[gut] conventional commit is required");
         std::process::exit(1);
     }
