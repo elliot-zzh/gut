@@ -43,7 +43,24 @@ fn main() {
     check_and_generate_hooks(&config);
     let args: Vec<String> = env::args().skip(1).collect();
     if args.is_empty() {
-        eprintln!("Usage: gut <git-subcommand> [args...]");
+        eprintln!("\nUsage: gut <git-subcommand> [args...]\n");
+        eprintln!("Gut is a CLI tool that wraps git, providing smart subcommand inference, commit message formatting, config-driven hooks, and convenient shortcuts.\n");
+        eprintln!("Just repalce all your 'git' with 'gut' ! :)\n ");
+        eprintln!("Main features:");
+        eprintln!("  - Auto-infer git subcommands from short abbreviations or typos\n");
+        eprintln!("  - 'gut commit' takes the last argument as the commit message");
+        eprintln!("  - Auto-format commit messages: write 'feat:xxx' or 'feat(scope):xxx' and gut converts it to 'feat: <emoji> xxx' or 'feat(scope): <emoji> xxx'");
+        eprintln!("  - Supports many conventional commit types (feat, fix, docs, refactor, test, chore, build, style, ci, perf, revert) and custom types via config");
+        eprintln!("  - Supports commit message formatting modes: upper_case/lower_case (configurable)");
+        eprintln!("  - Supports custom emoji mapping for commit types via gut.config.json\n");
+        eprintln!("  - Create a repo via a 'template' (clone a repo, delete .git, re-init)\n");
+        eprintln!("  - 'gut branch' auto-switches to the created branch\n");
+        eprintln!("  - 'gut log' outputs a dense, configurable log");
+        eprintln!("  - 'gut rlog' outputs a reversed log, following log config");
+        eprintln!("  - 'gut tlog' outputs a tree log: latest N commits from all branches, current branch ranked first, dense or detailed (configurable)\n");
+        eprintln!("  - Configurable global git hooks via gut.config.json (auto-generated in .git/hooks)\n");
+        eprintln!("  - Other commands not changed by gut are passed directly to git with only typo/abbr inference\n");
+        eprintln!("From more usage refer to https://github.com/elliot-zzh/gut\n");
         std::process::exit(1);
     }
     let sub = &args[0];

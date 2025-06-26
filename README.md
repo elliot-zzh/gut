@@ -34,7 +34,7 @@ For other modified commands refer to below. But most of the git commands are jus
 - Supports many conventional commit types (feat, fix, docs, refactor, test, chore, build, style, ci, perf, revert) and custom types via config
 - Supports commit message formatting modes: `upper_case`/`lower_case` (configurable)
 - Supports custom emoji mapping for commit types ("footer") via `gut.config.json`
-- Can create a repo via a 'template' (clone a repo, delete .git, re-init)
+- Create a repo via a 'template' (clone a repo, delete .git, re-init)
 - `gut branch` auto-switches to the created branch
 - `gut log` outputs a dense, configurable log (default: latest 10, short id + message, info level configurable)
 - `gut rlog` outputs a reversed log, following `log` config
