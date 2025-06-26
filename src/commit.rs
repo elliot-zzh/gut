@@ -89,8 +89,9 @@ pub fn format_commit_message(msg: &str, config: &Value) -> String {
     let mut formatted = if typ.is_empty() {
         msg.to_string()
     } else {
+        // Place emoji after colon and space, if enabled and present
         if emoji_enabled && !emoji.is_empty() {
-            format!("{} {}: {}", emoji, typ, rest)
+            format!("{}: {} {}", typ, emoji, rest)
         } else {
             format!("{}: {}", typ, rest)
         }
@@ -105,7 +106,7 @@ pub fn format_commit_message(msg: &str, config: &Value) -> String {
                 ""
             };
             formatted = if emoji_enabled && !emoji.is_empty() {
-                format!("{} {}({}): {}", emoji, typ_clean, scope.trim_end_matches(')'), rest)
+                format!("{}({}): {} {}", typ_clean, scope.trim_end_matches(')'), emoji, rest)
             } else {
                 format!("{}({}): {}", typ_clean, scope.trim_end_matches(')'), rest)
             };
