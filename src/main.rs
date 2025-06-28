@@ -44,9 +44,9 @@ fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
     if args.is_empty() {
         eprintln!("\nUsage: gut <git-subcommand> [args...]\n");
-        eprintln!("Gut is a CLI tool that wraps git, providing smart subcommand inference, commit message formatting, config-driven hooks, and convenient shortcuts.\n");
+        eprintln!("Gut is a CLI tool that wraps git, providing smart subcommand inference, commit message formatting, config-driven hooks, and convenient shortcuts.");
         eprintln!("Just repalce all your 'git' with 'gut' ! :)\n ");
-        eprintln!("Main features:");
+        eprintln!("Main features:\n");
         eprintln!("  - Auto-infer git subcommands from short abbreviations or typos\n");
         eprintln!("  - 'gut commit' takes the last argument as the commit message");
         eprintln!("  - Auto-format commit messages: write 'feat:xxx' or 'feat(scope):xxx' and gut converts it to 'feat: <emoji> xxx' or 'feat(scope): <emoji> xxx'");
@@ -60,7 +60,7 @@ fn main() {
         eprintln!("  - 'gut tlog' outputs a tree log: latest N commits from all branches, current branch ranked first, dense or detailed (configurable)\n");
         eprintln!("  - Configurable global git hooks via gut.config.json (auto-generated in .git/hooks)\n");
         eprintln!("  - Other commands not changed by gut are passed directly to git with only typo/abbr inference\n");
-        eprintln!("From more usage refer to https://github.com/elliot-zzh/gut\n");
+        eprintln!("From more usage please refer to https://github.com/elliot-zzh/gut\n");
         std::process::exit(1);
     }
     let sub = &args[0];
