@@ -1,16 +1,24 @@
 # Gut
 
-What a 'git' needs is just its gut!
+```
+     ____________________/  \       ______             _
+    /   ____________________/      / _____\   _    _  | |___
+    \____________________   \     | |     _  | |  | | |  ___|
+    /   ____________________/     | |____| | | |__| | | |___
+    \____________________   \      \/____//   \_\___| |_|__/
+     /  ____________________/
+     \  /
+```
 
-A CLI tool that wraps git, providing smart subcommand inference, commit message formatting, config-driven hooks, and convenient shortcuts.
+_What a 'git' needs is just its gut!_
 
-Written in Rust.
+A CLI tool that wraps the Git version controller, providing smart subcommand inference, commit message formatting, config-driven hooks, and convenient shortcuts.
 
 ## Getting Started
 
 ### Installation
 
-If you have Rust toolchain installed, just run the following:
+First you must have Git and Rust toolchain installed. Then just run the following to build from source:
 
 ```bash
 git clone https://github.com/elliot-zzh/gut
@@ -28,9 +36,9 @@ For other modified commands refer to below. But most of the git commands are jus
 
 ## Full Features
 
-- Auto-infer git subcommands from short abbreviations or typos
-- `gut commit` takes the last argument as the commit message
-- Auto-format commit messages: write `feat:xxx` or `feat(scope):xxx` and gut converts it to `<corresponding emoji> feat: xxx` or `<emoji> feat(scope): xxx`
+- Automatically infer git subcommands from short abbreviations or typos
+- `gut commit` takes the last argument as the commit message, so you don't need the `-m` anymore
+- Automatically format commit messages: write `feat:xxx` or `feat(scope):xxx` and gut converts it to `feat: <emoji>  xxx` or `feat(scope): <emoji> xxx`
 - Supports many conventional commit types (feat, fix, docs, refactor, test, chore, build, style, ci, perf, revert) and custom types via config
 - Supports commit message formatting modes: `upper_case`/`lower_case` (configurable)
 - Supports custom emoji mapping for commit types ("footer") via `gut.config.json`
@@ -45,23 +53,25 @@ For other modified commands refer to below. But most of the git commands are jus
 ## Configuration (`gut.config.json`)
 
 - `hooks`: List of git hooks to auto-generate
-- `log`/`tlog`: Configure log count and info level (`less`/`more`)
+- `log`/`tlog`: Configure log count and info level (`less`/`more`) for the `log` & `tlog` commands.
 - `commit`: Configure commit message formatting mode, custom emoji mapping for commit types (footer), enable/disable emoji, and require conventional commit style
 
 Example:
+
 ```json
 {
   "commit": {
-    "format_mode": "upper_case",
-    "emoji_enabled": true,
+    "format_mode": "upper_case", // other formating mode. also try `lowe_case`!
+    "emoji_enabled": true, // only work when using conventional commit
     "require_conventional": false,
-    "footer_emoji": {
-      "feat": "✨",
-      "fix": "🐛",
+    "emoji_mapping": { // customize emojis with conventional commit types. any type supported
       "custom": "🌟"
     }
   },
-  "log": { "count": 10, "info": "less" },
+  "log": {
+    "count": 15, // print 10 latest records. 10 by default
+    "info": "less" // print less
+  },
   "tlog": { "count": 20, "info": "more" },
   "hooks": [
     { "name": "pre-commit", "commands": ["echo Pre-commit hook"] }

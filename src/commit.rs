@@ -62,7 +62,7 @@ pub fn format_commit_message(msg: &str, config: &Value) -> String {
     footer_emoji_map.insert("revert", "⏪");
     // Merge user config mapping
     if let Some(commit_cfg) = config.get("commit") {
-        if let Some(footer_map) = commit_cfg.get("footer_emoji").and_then(|v| v.as_object()) {
+        if let Some(footer_map) = commit_cfg.get("emoji_mapping").and_then(|v| v.as_object()) {
             for (k, v) in footer_map.iter() {
                 if let Some(emoji) = v.as_str() {
                     footer_emoji_map.insert(k.as_str(), emoji);
